@@ -22,6 +22,7 @@ import base64
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 from google.auth.exceptions import RefreshError
@@ -30,7 +31,24 @@ from google.oauth2.credentials import Credentials
 
 BASE_DIR = Path(__file__).resolve().parent
 CREDENTIALS_FILE = BASE_DIR / "credentials.json"
-TOKEN_FILE = BASE_DIR / "token.json"
+
+
+def _default_token_path() -> Path:
+    """
+    Where token.json lives: next to this script. Some cloud hosts make that folder
+    read-only, so then the system temp folder is used instead. GOOGLE_TOKEN_PATH
+    overrides both.
+    """
+    override = os.getenv("GOOGLE_TOKEN_PATH")
+    if override:
+        return Path(override)
+    local = BASE_DIR / "token.json"
+    if local.exists() or os.access(BASE_DIR, os.W_OK):
+        return local
+    return Path(tempfile.gettempdir()) / "token.json"
+
+
+TOKEN_FILE = _default_token_path()
 # Where Render mounts a "Secret File" named token.json (read-only).
 SECRET_FILE_TOKEN = Path("/etc/secrets/token.json")
 
@@ -54,7 +72,12 @@ def _write_private(text: str) -> None:
 
 
 def _save(creds: Credentials) -> None:
-    _write_private(creds.to_json())
+    """Remember a refreshed login. If the disk is read-only, keep going without saving."""
+    try:
+        _write_private(creds.to_json())
+    except OSError as exc:
+        print(f"Couldn't save the refreshed Google login ({exc.__class__.__name__}); "
+              "using it for this run only.", file=sys.stderr)
 
 
 def ensure_token_file() -> bool:
@@ -85,7 +108,12 @@ def ensure_token_file() -> bool:
               "Re-create it from a fresh token.json.", file=sys.stderr)
         return False
 
-    _write_private(text)
+    try:
+        _write_private(text)
+    except OSError as exc:
+        print(f"Couldn't write {TOKEN_FILE} ({exc.__class__.__name__}). Set GOOGLE_TOKEN_PATH "
+              "to a writable location, for example /tmp/token.json.", file=sys.stderr)
+        return False
     return True
 
 

@@ -7,8 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=10000
 
-# Run as a normal user instead of root.
-RUN useradd --create-home --uid 1000 appuser
+# Run as a normal user instead of root. The /app folder must belong to that user
+# too, otherwise the bot can't save its refreshed Google login (token.json) there.
+RUN useradd --create-home --uid 1000 appuser \
+    && mkdir /app \
+    && chown appuser:appuser /app
 WORKDIR /app
 
 # Install dependencies first so rebuilds are fast when only the code changes.
