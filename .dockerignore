@@ -1,0 +1,10 @@
+.env
+token.json
+credentials.json
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+test_ai.py
+*.log
